@@ -1,8 +1,13 @@
+#################################################################
+# VPC, EKS (managed node group), and Jenkins EC2
+# Module versions chosen to be compatible with aws provider v4.x
+#################################################################
+
 data "aws_availability_zones" "available" {}
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "3.19.0"
+  version = "4.0.0"
 
   name = var.project_name
   cidr = "10.0.0.0/16"
@@ -20,26 +25,26 @@ module "eks" {
 
   cluster_name    = "${var.project_name}-eks"
   cluster_version = "1.26"
-  subnets         = module.vpc.private_subnets
-  vpc_id          = module.vpc.vpc_id
 
-  node_groups = {
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
+
+  eks_managed_node_groups = {
     worker_nodes = {
-      desired_capacity = 1
-      max_capacity     = 1
-      min_capacity     = 1
-      instance_type    = "t3.small"
-      key_name         = var.ssh_key_name
+      desired_size   = 1
+      min_size       = 1
+      max_size       = 1
+      instance_types = ["t3.small"]
+      key_name       = var.ssh_key_name
     }
   }
-
-  manage_aws_auth = true
 }
 
+# Security group for Jenkins EC2
 resource "aws_security_group" "jenkins_sg" {
   name        = "${var.project_name}-jenkins-sg"
   vpc_id      = module.vpc.vpc_id
-  description = "Allow SSH, HTTP, Jenkins, and EKS access"
+  description = "Allow SSH, HTTP and Jenkins"
 
   ingress {
     from_port   = 22
@@ -47,12 +52,14 @@ resource "aws_security_group" "jenkins_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   ingress {
     from_port   = 8080
     to_port     = 8080
@@ -70,6 +77,7 @@ resource "aws_security_group" "jenkins_sg" {
   tags = { Name = "${var.project_name}-jenkins-sg" }
 }
 
+# Amazon Linux 2 AMI (most recent)
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["137112412989"]
@@ -88,20 +96,22 @@ resource "aws_instance" "jenkins" {
 
   user_data = file("${path.module}/jenkins_user_data.sh")
 
-  tags = { Name = "${var.project_name}-jenkins" }
+  tags = {
+    Name = "${var.project_name}-jenkins"
+  }
 }
 
+# Outputs
 output "jenkins_public_ip" {
   description = "Jenkins EC2 public IP"
   value       = aws_instance.jenkins.public_ip
 }
 
-output "eks_cluster_name" {
-  value = module.eks.cluster_id
+output "jenkins_url" {
+  value = "http://${aws_instance.jenkins.public_ip}:8080"
 }
 
-output "kubeconfig" {
-  description = "kubeconfig content (sensitive)"
-  value       = module.eks.kubeconfig
-  sensitive   = true
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = module.eks.cluster_id
 }

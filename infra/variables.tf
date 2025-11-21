@@ -10,7 +10,7 @@ variable "project_name" {
 }
 
 variable "ssh_key_name" {
-  description = "EC2 KeyPair name (the name as shown in AWS, not the local .pem path)"
+  description = "EC2 KeyPair name (the name as shown in AWS console)"
   type        = string
 }
 
