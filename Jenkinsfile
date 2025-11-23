@@ -40,15 +40,19 @@ pipeline {
     }
 
     stage('Deploy to Kubernetes') {
-      steps {
-        withCredentials([file(credentialsId: KUBECONFIG_CRED, variable: 'KUBECONFIG_FILE')]) {
-          sh '''
-            mkdir -p ~/.kube
-            cp "$KUBECONFIG_FILE" ~/.kube/config
+  steps {
+    withCredentials([
+      file(credentialsId: 'kubeconfig-id', variable: 'KUBECONFIG_FILE')
+    ]) {
+      sh '''
+        echo "Deploying to EKS..."
 
-            echo "Applying Kubernetes manifests..."
-            kubectl apply -f k8s/deployment.yaml
-            kubectl apply -f k8s/service.yaml
+        # Use the kubeconfig file directly, no need to copy it
+        export KUBECONFIG=$KUBECONFIG_FILE
+
+        kubectl get nodes
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
           '''
         }
       }
