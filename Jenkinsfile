@@ -39,23 +39,34 @@ pipeline {
       }
     }
 
-    stage('Deploy to Kubernetes') {
+stage('Deploy to Kubernetes') {
   steps {
     withCredentials([
-      file(credentialsId: 'kubeconfig-id', variable: 'KUBECONFIG_FILE')
+      file(credentialsId: 'kubeconfig-id', variable: 'KUBECONFIG_FILE'),
+      usernamePassword(
+        credentialsId: 'aws-eks-creds',
+        usernameVariable: 'AWS_ACCESS_KEY_ID',
+        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+      )
     ]) {
       sh '''
         echo "Deploying to EKS..."
 
-        # Use the kubeconfig file directly, no need to copy it
+        # Use kubeconfig from Jenkins credentials
         export KUBECONFIG=$KUBECONFIG_FILE
+
+        # AWS credentials for getting EKS token
+        export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+        export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+        export AWS_DEFAULT_REGION=us-east-1
 
         kubectl get nodes
         kubectl apply -f k8s/deployment.yaml
         kubectl apply -f k8s/service.yaml
-          '''
-        }
-      }
+      '''
     }
+  }
+}
+
   }
 }
